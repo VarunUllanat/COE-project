@@ -21,9 +21,7 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1] in ALLOWED_EXTENSIONS
 
 
-def pipeline(filename, opt):
-    data = pd.read_excel(filename, header=None)
-    list_of_compounds = data[0]
+def pipeline(list_of_compounds, opt):
     files = []
     no_result = []
     for i in list_of_compounds:
@@ -32,7 +30,6 @@ def pipeline(filename, opt):
             files.append(app.config['UPLOAD_FOLDER'] + i + opt + '.sdf')
         except:
             no_result.append(i)
-    os.remove(filename)
     return files, no_result
 
 
@@ -53,17 +50,29 @@ def zip_files(files):
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        upfile = request.files['file']
         option = request.form['options']
+        upfile = request.files['file']
+        if request.form['text']:
+            text = request.form['text']
+            list_of_compounds = text.split('\r\n')
+            files, no_result = pipeline(list_of_compounds, option)
+            zipped = zip_files(files)
+            return_files_tut(zipped)
+            return flask.render_template('results.html', x=len(files) + len(no_result), y=len(no_result))
         if upfile and allowed_file(upfile.filename):
             dir = app.config['UPLOAD_FOLDER']
             for f in os.listdir(dir):
                 os.remove(os.path.join(dir, f))
             filename = secure_filename(upfile.filename)
             upfile.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            files, no_result = pipeline(os.path.join(app.config['UPLOAD_FOLDER'], filename), option)
+            data = pd.read_excel(os.path.join(app.config['UPLOAD_FOLDER'], filename), header=None)
+            list_of_compounds = data[0][1:]
+            files, no_result = pipeline(list_of_compounds, option)
+            os.remove(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             zipped = zip_files(files)
-            return return_files_tut(zipped)
+            return_files_tut(zipped)
+            print(files, no_result)
+            return flask.render_template('results.html', x = len(files) + len(no_result), y = len(no_result))
     return flask.render_template('main.html')
 
 
